@@ -40,7 +40,7 @@ clientes. Hay CSV de ejemplo en [`examples/`](examples/) y el formato está en [
 | **Resultado (simulado)** | Repetido en 3 mundos simulados, el GBM avisa con ≥10 min de antelación del 41 % ± 9 de las saturaciones, frente al 37 % del z-score estacional y el 23 % del umbral fijo, y con menos falsas alarmas que el z-score (0,42 frente a 0,46 por servidor y día). En walk-forward (3 periodos futuros) también es el mejor: 35 % ± 10 frente a 27 % ± 16. No gana en todos los mundos: en la semilla principal el z-score avisa más (41 % frente a 33 %). |
 | **Clientes** | Detecta las cuentas que rozan repetidamente el límite de su plan (52 de 320), las agrupa en segmentos interpretables (ARI 0,95 frente a los perfiles simulados) y redacta ofertas en borrador para revisión humana; las cuentas con causa técnica nunca reciben una venta. |
 | **Rigor** | Partición temporal, test de causalidad de las variables, walk-forward, calibración, importancia por permutación, prueba con etiquetas barajadas, repetición con varias semillas y validación sobre datos reales públicos (NAB). |
-| **Ingeniería** | Paquete Python con CLI, 69 tests (unitarios, extremo a extremo y del dashboard), lint, CI en GitHub Actions (3 versiones de Python + build de Docker), dependencias bloqueadas, MLflow, Parquet + DuckDB. |
+| **Ingeniería** | Paquete Python con CLI, 73 tests (unitarios, extremo a extremo y del dashboard), lint, CI en GitHub Actions (3 versiones de Python + build de Docker), dependencias bloqueadas, MLflow, Parquet + DuckDB. |
 
 > Todos los datos de entrenamiento son **simulados** (ciclos diarios/semanales, backups nocturnos, incidentes
 > etiquetados y picos de tráfico legítimos; la carga de cada servidor es la suma del uso de sus cuentas de clientes). Las cifras demuestran que el método funciona sobre lo simulado; no son una
@@ -113,9 +113,16 @@ python -m pytest -q                       # batería de tests
 
 El informe completo, con todas las figuras, se genera en `outputs/report.html` (fichero autocontenido). Los artefactos
 generados (informe, Parquet, modelo) no se versionan en git: en el repositorio solo están `outputs/results.json`,
-`outputs/RESULTS.md` y `outputs/real_results.csv`, de donde salen las cifras de este README. El dashboard necesita
-haber ejecutado antes `python -m capguard all` (Docker lo hace al construir la imagen). `--real` descarga 9 series
-públicas de AWS CloudWatch; sin red, todo lo demás funciona.
+`outputs/RESULTS.md` y `outputs/real_results.csv`, de donde salen las cifras de este README. El dashboard usa `outputs/` si
+has ejecutado `python -m capguard all` (Docker lo hace al construir la imagen); si no, muestra la instantánea de
+demostración versionada en `demo/`, con un aviso. `--real` descarga 9 series públicas de AWS CloudWatch; sin red,
+todo lo demás funciona.
+
+**Desplegar el dashboard en Streamlit Community Cloud:** basta con indicar `dashboard/app.py` como fichero principal
+y Python 3.12. Streamlit Cloud clona el repositorio sin `outputs/data` y no ejecuta el pipeline, así que el dashboard
+muestra `demo/`: una instantánea de ~4 MB de los mismos resultados del README (solo las columnas que lee el
+dashboard y el uso de las cuentas con oferta; sin el modelo serializado). Arranca en segundos y no entrena nada.
+Tras cambiar el pipeline, `make all` regenera resultados, README y demo; un test falla si `demo/` queda desfasada.
 
 **Puntuar métricas propias** con el modelo entrenado:
 
@@ -131,7 +138,7 @@ reentrenar con su propio histórico.
 **Explicaciones con un LLM** (opcional): `export ANTHROPIC_API_KEY=… && python -m capguard all --llm`. Usa
 `claude-haiku-5-5` por defecto (configurable con `CAPGUARD_LLM_MODEL`); sin clave se usa la plantilla determinista.
 
-Atajos en el [`Makefile`](Makefile): `make test`, `make lint`, `make all`, `make docker`, `make verify` (entorno
+Atajos en el [`Makefile`](Makefile): `make test`, `make lint`, `make all`, `make demo`, `make docker`, `make verify` (entorno
 limpio desde cero). Todos los subcomandos: `python -m capguard --help`.
 
 ## Resultados
@@ -241,7 +248,8 @@ capguard/
   analysis.py scale.py real.py       negocio/costes, prueba de escala, validación con datos reales
   orchestrate.py report*.py summary.py  pipeline completo, informe HTML y resumen para este README
   bundle.py tracking.py __main__.py  modelo serializado, MLflow y CLI
-dashboard/app.py                     BI interactivo (Streamlit)
+dashboard/app.py                     BI interactivo (Streamlit); fichero principal para desplegarlo
+demo/                                instantánea pequeña de resultados para el dashboard desplegado
 tests/                               unitarios, extremo a extremo, CLI y dashboard
 docs/                                arquitectura, formato de datos, preguntas frecuentes, benchmark de escala
 examples/                            CSV de ejemplo (métricas limpias y «sucias», cuentas, uso y planes)

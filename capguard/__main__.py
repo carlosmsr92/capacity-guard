@@ -115,6 +115,17 @@ def cmd_export_sample(a):
           "accounts.csv, usage.csv y plans.csv")
 
 
+def cmd_export_demo(a):
+    from .demo import export_demo
+    try:
+        sizes = export_demo(a.out, a.dest)
+    except FileNotFoundError as exc:
+        raise SystemExit(str(exc)) from exc
+    for name, size in sizes.items():
+        print(f"{size / 1024:8.0f} KB  {a.dest}/{name}")
+    print(f"Total: {sum(sizes.values()) / 1024 / 1024:.1f} MB")
+
+
 def cmd_scale(a):
     import shutil
     import tempfile
@@ -193,6 +204,9 @@ def main():
     vc.add_argument("--plans"); vc.add_argument("--mapping"); vc.add_argument("--tz", help="zona horaria a la que convertir (horas sin zona = UTC)"); vc.add_argument("--out", default="outputs/data")
     vc.add_argument("--date-format", help="formato de fecha si es ambiguo")
     vc.set_defaults(f=cmd_validate_csv)
+    ed = sub.add_parser("export-demo", help="instantánea pequeña de resultados para desplegar el dashboard")
+    ed.add_argument("--out", default="outputs", help="resultados completos de `capguard all`")
+    ed.add_argument("--dest", default="demo"); ed.set_defaults(f=cmd_export_demo)
     es = sub.add_parser("export-sample", help="escribe CSV pequeños de ejemplo")
     es.add_argument("--out", default="examples"); es.set_defaults(f=cmd_export_sample)
     sc = sub.add_parser("scale", help="prueba de escala pandas vs DuckDB")

@@ -125,3 +125,17 @@ def test_dashboard_renders_and_reacts(built, monkeypatch):
     picks = at.selectbox(key="customer_account").options
     at.selectbox(key="customer_account").set_value(picks[-1]).run()
     assert not at.exception
+
+
+def test_export_demo_produces_a_small_snapshot_the_dashboard_can_read(built, tmp_path, monkeypatch):
+    from streamlit.testing.v1 import AppTest
+
+    from capguard.demo import export_demo
+    out, _ = built
+    sizes = export_demo(out, tmp_path / "demo")
+    full = sum(p.stat().st_size for p in (out / "data").glob("*.parquet"))
+    assert sum(v for k, v in sizes.items() if k.endswith(".parquet")) < full / 2
+    assert not any(k.endswith(".joblib") for k in sizes)
+    monkeypatch.setenv("CAPGUARD_OUT", str(tmp_path / "demo"))
+    at = AppTest.from_file(str(ROOT / "dashboard" / "app.py"), default_timeout=120).run()
+    assert not at.exception and len(at.tabs) == 7

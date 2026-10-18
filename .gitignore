@@ -37,6 +37,7 @@ outputs/*
 !outputs/RESULTS.md
 !outputs/real_results.csv
 *.parquet
+!demo/data/*.parquet
 *.joblib
 mlruns/
 data/real/

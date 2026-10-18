@@ -18,7 +18,18 @@ sys.path.insert(0, str(ROOT))
 from capguard import analysis  # noqa: E402
 from capguard.simulator import SAT_LIMITS  # noqa: E402
 
-OUT = Path(os.environ.get("CAPGUARD_OUT", ROOT / "outputs"))
+
+def _has_results(d: Path) -> bool:
+    return all((d / f).exists() for f in ("results.json", "data/metrics.parquet", "data/scores.parquet"))
+
+
+# CAPGUARD_OUT manda; si no, outputs/ (resultados propios) y, si no existe, la instantánea versionada demo/
+# (p. ej. en Streamlit Cloud, que clona el repo sin outputs/data y no ejecuta el pipeline)
+if os.environ.get("CAPGUARD_OUT"):
+    OUT = Path(os.environ["CAPGUARD_OUT"])
+else:
+    OUT = ROOT / "outputs" if _has_results(ROOT / "outputs") else ROOT / "demo"
+DEMO = OUT.resolve() == (ROOT / "demo").resolve()
 DATA = OUT / "data"
 METHODS = {"threshold": "Umbral estático", "zscore": "Z-score estacional", "iforest": "Isolation Forest", "gbm": "Pronosticador GBM"}
 
@@ -80,7 +91,7 @@ def segments(df: pd.DataFrame, col: str):
         yield g["timestamp"].iloc[0], g["timestamp"].iloc[-1], (g[col].iloc[0] if col == "event" else "")
 
 
-if not all((OUT / f).exists() for f in ("results.json", "data/metrics.parquet", "data/scores.parquet")):
+if not _has_results(OUT):
     st.error("Faltan los resultados o sus datos (no se versionan en git). Ejecuta primero: `python -m capguard all`")
     st.stop()
 
@@ -91,6 +102,11 @@ CSV = R.get("source", "sim") == "csv"
 CAP = R.get("capabilities", {})
 st.caption("Detección de anomalías y aviso temprano de saturación en servidores de hosting · "
            + ("datos REALES (CSV)" if CSV else "datos SIMULADOS"))
+if DEMO:
+    cfg = R["main"]["config"]
+    st.info(f"Datos de demostración: instantánea versionada de `python -m capguard all` (semilla {cfg['seed']}, "
+            f"{cfg['n_servers']} servidores × {cfg['days']} días). Para usar resultados propios, ejecuta el pipeline "
+            "en local; el dashboard leerá outputs/ automáticamente.")
 skipped = [CAP[f"{k}_reason"] for k, v in CAP.items() if v is False and f"{k}_reason" in CAP]
 if skipped:
     st.warning("Partes omitidas con estos datos: " + " · ".join(_md(s) for s in skipped))
