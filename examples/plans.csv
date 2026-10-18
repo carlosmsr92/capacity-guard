@@ -1,0 +1,6 @@
+plan,precio_mes,cpu_cores,ram_mb,io_mbps,procesos
+basico,9.0,1.0,1024.0,10.0,50.0
+plus,18.0,2.0,2048.0,20.0,100.0
+plus_intermedio,27.0,3.0,3072.0,30.0,150.0
+pro,42.0,4.0,4096.0,50.0,250.0
+vps,85.0,8.0,8192.0,100.0,500.0

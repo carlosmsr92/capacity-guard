@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# entornos virtuales
+.venv/
+venv/
+env/
+
+# secretos y configuración local (la clave de API se lee del entorno, nunca de un fichero del repo)
+.env
+.env.*
+*.pem
+*.key
+secrets.*
+.vscode/
+.idea/
+.DS_Store
+
+# logs
+*.log
+logs/
+
+# artefactos generados por `python -m capguard all` (se regeneran; Docker los crea al construir la imagen).
+# Solo se versionan los resultados en texto que respaldan las cifras del README.
+outputs/*
+!outputs/results.json
+!outputs/RESULTS.md
+!outputs/real_results.csv
+*.parquet
+*.joblib
+mlruns/
+data/real/
+alerts*.csv

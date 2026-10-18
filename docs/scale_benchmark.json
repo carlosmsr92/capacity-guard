@@ -1,0 +1,41 @@
+{
+ "medium": {
+  "servers": 300,
+  "days": 45,
+  "rows": 3888000,
+  "gen_s": 4.7,
+  "results": [
+   {
+    "engine": "pandas",
+    "rows": 3888000,
+    "seconds": 5.04,
+    "peak_rss_mb": 1055.0,
+    "checksum": 5725159.092
+   },
+   {
+    "engine": "duckdb",
+    "rows": 3888000,
+    "seconds": 2.99,
+    "peak_rss_mb": 739.0,
+    "checksum": 5725159.092
+   }
+  ],
+  "machine": "1 vCPU, 3 GB RAM"
+ },
+ "large": {
+  "servers": 1000,
+  "days": 90,
+  "rows": 25920000,
+  "gen_s": 23.5,
+  "results": [
+   {
+    "engine": "duckdb",
+    "rows": 25920000,
+    "seconds": 20.83,
+    "peak_rss_mb": 3468.0,
+    "checksum": 37501776.992
+   }
+  ],
+  "machine": "1 vCPU, 3 GB RAM"
+ }
+}

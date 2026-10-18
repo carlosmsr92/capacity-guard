@@ -1,0 +1,10 @@
+serie,windows,detected,false_alarm_episodes,false_alarms_per_day,median_delay_min
+ec2_cpu_utilization_24ae8d,2,1,0,0.0,505.0
+ec2_cpu_utilization_53ea38,2,1,0,0.0,560.0
+ec2_cpu_utilization_5f5533,2,0,0,0.0,
+ec2_cpu_utilization_77c1ca,1,1,48,4.03267211201867,30.0
+ec2_cpu_utilization_825cc2,1,1,0,0.0,505.0
+ec2_cpu_utilization_ac20cd,1,1,0,0.0,1025.0
+ec2_cpu_utilization_fe7f93,3,2,51,4.284714119019837,287.5
+elb_request_count_8c0756,2,2,2,0.16802800466744455,520.0
+ec2_network_in_5abac7,2,1,1,0.07162397413578712,510.0

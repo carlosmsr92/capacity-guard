@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "capacity-guard"
+description = "Detección de anomalías y aviso temprano de saturación en servidores de hosting"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dynamic = ["version", "dependencies"]
+
+[project.scripts]
+capguard = "capguard.__main__:main"
+
+[tool.setuptools]
+packages = ["capguard"]
+
+[tool.setuptools.dynamic]
+version = { attr = "capguard.__version__" }
+dependencies = { file = ["requirements.txt"] }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore:.*Maximum iterations.*:UserWarning",
+]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E9", "F", "B", "I"]
+ignore = ["B905"]  # zip(strict=) no aporta aquí: las longitudes se construyen iguales
