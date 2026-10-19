@@ -19,6 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from capguard import analysis  # noqa: E402
 from capguard.simulator import SAT_LIMITS  # noqa: E402
+from dashboard.formato import fn0, fn2, fni, grafico, tabla, texto_es  # noqa: E402
 from dashboard.labels import KPIS, feature, label, plans_in_text  # noqa: E402
 
 
@@ -90,13 +91,17 @@ def bounds(stamp: int) -> tuple[pd.Timestamp, pd.Timestamp]:
     return pd.Timestamp(a), pd.Timestamp(b)
 
 
+# Formato español en los ejes y textos emergentes de Altair/Vega-Lite (miles con punto, decimales con coma)
+ALT_ES = {"number": {"decimal": ",", "thousands": ".", "grouping": [3], "currency": ["", "\u00a0€"]}}
+
+
 def hbar(df: pd.DataFrame, cat: str, val: str, color: str, height: int) -> alt.Chart:
     """Barras horizontales ordenadas de mayor a menor, con espacio para etiquetas largas en español."""
     return alt.Chart(df).mark_bar(color=color).encode(
         x=alt.X(f"{val}:Q", title=None),
         y=alt.Y(f"{cat}:N", sort="-x", title=None, axis=alt.Axis(labelLimit=320)),
-        tooltip=[alt.Tooltip(f"{cat}:N"), alt.Tooltip(f"{val}:Q", format=".2f")],
-    ).properties(height=height)
+        tooltip=[alt.Tooltip(f"{cat}:N"), alt.Tooltip(f"{val}:Q", format=",.2f")],
+    ).properties(height=height).configure(locale=ALT_ES)
 
 
 def segments(df: pd.DataFrame, col: str):
@@ -145,16 +150,16 @@ tabs = st.tabs(["Resumen", "Servidores", "Negocio", "Calidad de datos", "Modelo"
 with tabs[0]:
     g = main_b["gbm"]
     c = st.columns(5)
-    c[0].metric("Muestras", f"{R['ingest']['rows_final' if CSV else 'rows_clean']:,}", border=True)
+    c[0].metric("Muestras", f"{fni(R['ingest']['rows_final' if CSV else 'rows_clean'])}", border=True)
     c[1].metric("Saturaciones en test", g["n_events"], border=True)
-    c[2].metric("Avisadas ≥10 min antes (GBM)", f"{100 * g['early_rate']:.0f} %", border=True)
-    c[3].metric("Falsas alarmas/servidor·día", f"{g['false_alarms_per_server_day']:.2f}", border=True)
-    c[4].metric("AUC del pronosticador", f"{R['main']['gbm_sample_metrics']['roc_auc']:.2f}", border=True)
-    rows = [{"Método": m["method"], "Detectadas": f"{100 * m['recall']:.0f} %", "Con ≥10 min de antelación": f"{100 * m['early_rate']:.0f} %",
+    c[2].metric("Avisadas ≥10 min antes (GBM)", f"{fn0(100 * g['early_rate'])} %", border=True)
+    c[3].metric("Falsas alarmas/servidor·día", f"{fn2(g['false_alarms_per_server_day'])}", border=True)
+    c[4].metric("AUC del pronosticador", f"{fn2(R['main']['gbm_sample_metrics']['roc_auc'])}", border=True)
+    rows = [{"Método": m["method"], "Detectadas": f"{fn0(100 * m['recall'])} %", "Con ≥10 min de antelación": f"{fn0(100 * m['early_rate'])} %",
              "Antelación mediana (min)": m["median_lead_min"], "Falsas alarmas / servidor·día": round(m["false_alarms_per_server_day"], 2)}
             for m in main_b.values()]
     st.subheader("Aviso temprano de saturación (periodo de test)")
-    st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
+    st.dataframe(tabla(pd.DataFrame(rows), {"Antelación mediana (min)": 0}), hide_index=True, width="stretch")
     st.info("Cada método se calibra en validación para no superar un presupuesto de falsas alarmas; el umbral estático se deja "
             "como lo configuraría una monitorización clásica.")
 
@@ -185,7 +190,7 @@ with tabs[1]:
             fig.add_vrect(x0=a, x1=b, fillcolor=C_LIMIT, opacity=0.20, line_width=0)
         fig.update_layout(height=640, margin=dict(l=10, r=10, t=40, b=10), legend=dict(orientation="h"))
         fig.update_xaxes(tickformat="%d/%m", hoverformat="%d/%m %H:%M")  # fechas sin nombres de mes en inglés
-        st.plotly_chart(fig, width="stretch")
+        grafico(fig, width="stretch")
         st.caption("Gris = evento en curso (con su causa) · rojo = saturación · naranja = alarma del pronosticador. "
                    "Fuera del periodo de test el modelo ha visto esos datos al entrenar.")
 
@@ -194,7 +199,7 @@ with tabs[2]:
     if "by_kind" in e:
         c = st.columns([1, 1, 2])  # el tipo de incidente es un texto largo
         c[0].metric("Incidentes (simulados)", e["n_incidents"], border=True)
-        c[1].metric("Por servidor y mes", f"{e['incidents_per_server_month']:.0f}", border=True)
+        c[1].metric("Por servidor y mes", f"{fn0(e['incidents_per_server_month'])}", border=True)
         c[2].metric("Tipo con más tiempo saturado", label(e["worst_kind_for_saturation"]), border=True)
         kinds = pd.DataFrame(e["by_kind"]).assign(kind=lambda k: k["kind"].map(label))
         col1, col2 = st.columns(2)
@@ -213,35 +218,36 @@ with tabs[2]:
     c_mit = s3.slider("Coste de avisar a tiempo (€)", 0, 200, 20, 5, key="c_mit")
     ct = analysis.cost_table(main_b, {"c_miss": c_miss, "c_fa": c_fa, "c_mitigated": c_mit})
     best = ct.loc[ct["coste_total"].idxmin(), "method"]
-    st.dataframe(ct[["method", "avisadas_a_tiempo", "no_avisadas", "falsas_alarmas", "coste_total", "coste_por_servidor_mes", "ahorro_vs_umbral_pct"]]
-                 .rename(columns=label), hide_index=True, width="stretch")
+    st.dataframe(tabla(ct[["method", "avisadas_a_tiempo", "no_avisadas", "falsas_alarmas", "coste_total", "coste_por_servidor_mes",
+                           "ahorro_vs_umbral_pct"]].rename(columns=label), {label("ahorro_vs_umbral_pct"): 1}),
+                 hide_index=True, width="stretch")
     st.success(f"Con estos costes, el método más barato es: **{best}**")
 
 with tabs[3]:
     q = R["ingest"]
     if CSV:
-        st.write(f"CSV: {q['rows_read']:,} filas leídas → {q['rows_final']:,} finales · resolución {_md(q['frequency'])} · "
+        st.write(f"CSV: {fni(q['rows_read'])} filas leídas → {fni(q['rows_final'])} finales · resolución {_md(q['frequency'])} · "
                  f"conversiones: {_md(', '.join(q['unit_conversions']) or 'ninguna')} · "
                  f"columnas ignoradas: {_md(', '.join(q['ignored_columns']) or 'ninguna')}.")
     else:
-        st.write(f"Feed sucio: {q['rows_dirty']:,} filas → reparado: {q['rows_clean']:,} (verdad: {q['rows_truth']:,}). "
+        st.write(f"Feed sucio: {fni(q['rows_dirty'])} filas → reparado: {fni(q['rows_clean'])} (verdad: {fni(q['rows_truth'])}). "
                  f"Filas imputadas: {q['imputed_rows']}.")
     names = [c["name"] for c in q["quality_before"]["checks"]]
     before = {c["name"]: c["violations"] for c in q["quality_before"]["checks"]}
     after = {c["name"]: c["violations"] for c in q["quality_after"]["checks"]}
-    st.dataframe(pd.DataFrame({"Comprobación": [label(n) for n in names], "Antes": [before[n] for n in names],
-                               "Después": [after.get(n, 0) for n in names]}),
+    st.dataframe(tabla(pd.DataFrame({"Comprobación": [label(n) for n in names], "Antes": [before[n] for n in names],
+                                     "Después": [after.get(n, 0) for n in names]})),
                  hide_index=True, width="stretch")
     if not CSV:
         st.write("Error de la imputación (% de la desviación típica de cada métrica):")
-        st.dataframe(pd.Series(q["imputation_mae_vs_metric_std"]).rename(label).mul(100).round(1).rename("%").to_frame().T,
+        st.dataframe(tabla(pd.Series(q["imputation_mae_vs_metric_std"]).rename(label).mul(100).rename("%").to_frame().T, 1),
                      width="stretch")
 
 with tabs[4]:
     st.subheader("Walk-forward (3 periodos futuros)")
     wf = pd.DataFrame(R["walk_forward"])
-    st.dataframe(wf.pivot_table(index="method", columns="test_days", values="early_rate").round(2)
-                 .rename_axis(index=label("method"), columns=label("test_days")), width="stretch")
+    st.dataframe(tabla(wf.pivot_table(index="method", columns="test_days", values="early_rate")
+                       .rename_axis(index=label("method"), columns=label("test_days"))), width="stretch")
     st.caption("Fracción de saturaciones avisadas ≥10 min antes, por periodo de test.")
     c1, c2 = st.columns(2)
     imp = pd.DataFrame(R["importance"]).assign(feature=lambda f: f["feature"].map(feature))
@@ -249,17 +255,17 @@ with tabs[4]:
     c1.altair_chart(hbar(imp, "feature", "importance", C_RISK, 360), width="stretch")
     ae = R["deep"]["B"]
     c2.write("Autoencoder (deep learning), tarea B")
-    c2.metric(KPIS["detectadas"], f"{100 * ae['recall']:.0f} %", border=True)
-    c2.metric(KPIS["avisadas_>=10min"], f"{100 * ae['early_rate']:.0f} %", border=True)
-    c2.metric(KPIS["falsas_alarmas_servidor_dia"], f"{ae['false_alarms_per_server_day']:.2f}", border=True)
+    c2.metric(KPIS["detectadas"], f"{fn0(100 * ae['recall'])} %", border=True)
+    c2.metric(KPIS["avisadas_>=10min"], f"{fn0(100 * ae['early_rate'])} %", border=True)
+    c2.metric(KPIS["falsas_alarmas_servidor_dia"], f"{fn2(ae['false_alarms_per_server_day'])}", border=True)
     st.subheader("Diagnóstico de causa")
     dg = R["diagnosis"] or {"by_lag": {}}
     if not R["diagnosis"]:
         st.info(CAP.get("diagnosis_reason", "Diagnóstico no disponible."))
     for lag, v in dg["by_lag"].items():
-        st.write(f"**{lag}** · {v['n']} eventos · acierto {100 * v['accuracy']:.0f} % (clase mayoritaria {100 * v['majority_baseline']:.0f} %)")
+        st.write(f"**{lag}** · {v['n']} eventos · acierto {fn0(100 * v['accuracy'])} % (clase mayoritaria {fn0(100 * v['majority_baseline'])} %)")
         names = [label(k) for k in v["labels"]]
-        st.dataframe(pd.DataFrame(v["confusion"], index=[f"real: {k}" for k in names], columns=names), width="stretch")
+        st.dataframe(tabla(pd.DataFrame(v["confusion"], index=[f"real: {k}" for k in names], columns=names)), width="stretch")
 
 with tabs[5]:
     customers = R.get("customers", {})
@@ -289,11 +295,13 @@ with tabs[5]:
         shown = offers[[c for c in cols if c in offers]]
         shown = shown.assign(**{c: shown[c].map(label, na_action="ignore") for c in ("cluster", "oferta", "plan_actual", "plan_propuesto", "estado")
                                 if c in shown})
-        st.dataframe(shown.rename(columns=label), hide_index=True, width="stretch")
+        if "motivo" in shown:
+            shown = shown.assign(motivo=shown["motivo"].map(texto_es, na_action="ignore"))
+        st.dataframe(tabla(shown.rename(columns=label)), hide_index=True, width="stretch")
         value = customers.get("offer_value", {})
         if value.get("sensitivity"):
             st.caption("Valor mensual adicional con distintas tasas de aceptación (SUPUESTO ilustrativo): " + " · ".join(
-                f"{100 * s['acceptance']:.0f} % → {s['expected_monthly_value']:,.0f} €" for s in value["sensitivity"]))
+                f"{fn0(100 * s['acceptance'])} % → {fn0(s['expected_monthly_value'])} €" for s in value["sensitivity"]))
         if not offers.empty:
             pick = st.selectbox("Cuenta", offers["account_id"].tolist(), key="customer_account")
             usage_path = DATA / "account_usage_hourly.parquet"
@@ -309,9 +317,9 @@ with tabs[5]:
                         x=alt.X("Fecha:T", axis=alt.Axis(format="%d/%m", title=None)),
                         y=alt.Y("% del límite:Q", title=None), color=alt.Color("Recurso:N", legend=alt.Legend(orient="bottom", title=None)),
                         tooltip=[alt.Tooltip("Fecha:T", format="%d/%m %H:%M"), "Recurso:N", alt.Tooltip("% del límite:Q", format=".0f")],
-                    ).properties(height=240), width="stretch")
+                    ).properties(height=240).configure(locale=ALT_ES), width="stretch")
                     st.caption("% del límite del plan por hora y recurso (100 % = limitado).")
-            st.write(_md(plans_in_text(offers.set_index("account_id").loc[pick, "texto"])))
+            st.write(_md(texto_es(plans_in_text(offers.set_index("account_id").loc[pick, "texto"]))))
             with st.expander("Evidencia usada para redactar la oferta"):
                 st.json(offers.set_index("account_id").loc[pick, "evidencia"])
 
@@ -322,7 +330,7 @@ with tabs[6]:
     else:
         labels = [f"{e['server']} · {e['timestamp']}" for e in exp]
         pick = st.selectbox("Alarma", range(len(exp)), format_func=lambda i: labels[i], key="alert_pick")
-        st.write(_md(exp[pick]["text"]))
+        st.write(_md(texto_es(exp[pick]["text"])))
         st.caption(f"Procedencia: {exp[pick]['source']}" + (f" · guardarraíl: {exp[pick]['guardrail']}" if exp[pick]["guardrail"] else ""))
         with st.expander("Evidencia usada (lo único que puede ver el redactor)"):
             st.json(exp[pick]["evidence"])
