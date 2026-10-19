@@ -126,6 +126,8 @@ st.markdown(f"""<style>
 .cg-header .cg-title {{font-size: 2rem; font-weight: 700; line-height: 1.2}}
 .cg-header .cg-sub {{font-size: 0.95rem; opacity: 0.95; margin-top: 0.25rem}}
 .cg-header .cg-logo {{height: 52px; width: auto; filter: brightness(0) invert(1)}}
+/* En móvil, los valores de texto largos de las tarjetas pasan de línea en vez de cortarse con «…» */
+[data-testid="stMetricValue"] div, [data-testid="stMetricValue"] p {{white-space: normal; text-overflow: clip; line-height: 1.2}}
 </style>
 <div class="cg-header"><div><div class="cg-title">capacity-guard</div>
 <div class="cg-sub">Detección de anomalías y aviso temprano de saturación en servidores de hosting ·
