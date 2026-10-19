@@ -8,6 +8,7 @@ import re
 import sys
 from pathlib import Path
 
+import altair as alt
 import duckdb
 import pandas as pd
 import plotly.graph_objects as go
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from capguard import analysis  # noqa: E402
 from capguard.simulator import SAT_LIMITS  # noqa: E402
-from dashboard.labels import KPIS, feature, label  # noqa: E402
+from dashboard.labels import KPIS, feature, label, plans_in_text  # noqa: E402
 
 
 def _has_results(d: Path) -> bool:
@@ -87,6 +88,15 @@ def bounds(stamp: int) -> tuple[pd.Timestamp, pd.Timestamp]:
     with _db() as con:
         a, b = con.execute(f"SELECT min(timestamp), max(timestamp) FROM read_parquet('{_sql_path(DATA / 'metrics.parquet')}')").fetchone()
     return pd.Timestamp(a), pd.Timestamp(b)
+
+
+def hbar(df: pd.DataFrame, cat: str, val: str, color: str, height: int) -> alt.Chart:
+    """Barras horizontales ordenadas de mayor a menor, con espacio para etiquetas largas en español."""
+    return alt.Chart(df).mark_bar(color=color).encode(
+        x=alt.X(f"{val}:Q", title=None),
+        y=alt.Y(f"{cat}:N", sort="-x", title=None, axis=alt.Axis(labelLimit=320)),
+        tooltip=[alt.Tooltip(f"{cat}:N"), alt.Tooltip(f"{val}:Q", format=".2f")],
+    ).properties(height=height)
 
 
 def segments(df: pd.DataFrame, col: str):
@@ -172,6 +182,7 @@ with tabs[1]:
         for a, b, _ in segments(d, "sat_now"):
             fig.add_vrect(x0=a, x1=b, fillcolor=C_LIMIT, opacity=0.20, line_width=0)
         fig.update_layout(height=640, margin=dict(l=10, r=10, t=40, b=10), legend=dict(orientation="h"))
+        fig.update_xaxes(tickformat="%d/%m", hoverformat="%d/%m %H:%M")  # fechas sin nombres de mes en inglés
         st.plotly_chart(fig, width="stretch")
         st.caption("Gris = evento en curso (con su causa) · rojo = saturación · naranja = alarma del pronosticador. "
                    "Fuera del periodo de test el modelo ha visto esos datos al entrenar.")
@@ -179,7 +190,7 @@ with tabs[1]:
 with tabs[2]:
     e = R["eda"]
     if "by_kind" in e:
-        c = st.columns(3)
+        c = st.columns([1, 1, 2])  # el tipo de incidente es un texto largo
         c[0].metric("Incidentes (simulados)", e["n_incidents"], border=True)
         c[1].metric("Por servidor y mes", f"{e['incidents_per_server_month']:.0f}", border=True)
         c[2].metric("Tipo con más tiempo saturado", label(e["worst_kind_for_saturation"]), border=True)
@@ -187,7 +198,8 @@ with tabs[2]:
         col1, col2 = st.columns(2)
         col1.bar_chart(pd.Series(e["by_hour"], name="incidentes"), height=260)
         col1.caption("Inicio de incidentes por hora del día")
-        col2.bar_chart(kinds.set_index("kind")["min_saturados"] / 60, height=260, color=C_LIMIT)
+        hours = pd.DataFrame({"Tipo": kinds["kind"], "Horas": kinds["min_saturados"] / 60})
+        col2.altair_chart(hbar(hours, "Tipo", "Horas", C_LIMIT, 260), width="stretch")
         col2.caption("Horas de saturación por tipo de incidente")
     else:
         st.info(CAP.get("incident_eda_reason", "Sin etiquetas de incidentes."))
@@ -230,9 +242,9 @@ with tabs[4]:
                  .rename_axis(index=label("method"), columns=label("test_days")), width="stretch")
     st.caption("Fracción de saturaciones avisadas ≥10 min antes, por periodo de test.")
     c1, c2 = st.columns(2)
-    imp = pd.DataFrame(R["importance"]).assign(feature=lambda f: f["feature"].map(feature)).set_index("feature")["importance"]
+    imp = pd.DataFrame(R["importance"]).assign(feature=lambda f: f["feature"].map(feature))
     c1.write("Importancia de variables (permutación)")
-    c1.bar_chart(imp, height=300, color=C_RISK)
+    c1.altair_chart(hbar(imp, "feature", "importance", C_RISK, 360), width="stretch")
     ae = R["deep"]["B"]
     c2.write("Autoencoder (deep learning), tarea B")
     c2.metric(KPIS["detectadas"], f"{100 * ae['recall']:.0f} %", border=True)
@@ -290,9 +302,14 @@ with tabs[5]:
                 if plan in PLANS and not u.empty:
                     pct = pd.DataFrame({r: 100 * u[r].astype(float) / getattr(PLANS[plan], LIMIT_FIELD[r])
                                         for r in RESOURCES}).set_index(u["timestamp"]).rename(columns=label)
-                    st.line_chart(pct, height=240)
+                    long = pct.rename_axis("Fecha").reset_index().melt("Fecha", var_name="Recurso", value_name="% del límite")
+                    st.altair_chart(alt.Chart(long).mark_line(strokeWidth=1.2).encode(
+                        x=alt.X("Fecha:T", axis=alt.Axis(format="%d/%m", title=None)),
+                        y=alt.Y("% del límite:Q", title=None), color=alt.Color("Recurso:N", legend=alt.Legend(orient="bottom", title=None)),
+                        tooltip=[alt.Tooltip("Fecha:T", format="%d/%m %H:%M"), "Recurso:N", alt.Tooltip("% del límite:Q", format=".0f")],
+                    ).properties(height=240), width="stretch")
                     st.caption("% del límite del plan por hora y recurso (100 % = limitado).")
-            st.write(_md(offers.set_index("account_id").loc[pick, "texto"]))
+            st.write(_md(plans_in_text(offers.set_index("account_id").loc[pick, "texto"])))
             with st.expander("Evidencia usada para redactar la oferta"):
                 st.json(offers.set_index("account_id").loc[pick, "evidencia"])
 

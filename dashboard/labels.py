@@ -67,3 +67,11 @@ def label(value) -> str:
     if (m := re.fullmatch(r"(\w+?)_(\d+)", text)) and m[1] in _GENERIC:  # p. ej. campanas_2 → «Campañas 2»
         return f"{_GENERIC[m[1]]} {m[2]}"
     return text.replace("_", " ").capitalize() if "_" in text else text
+
+
+PLANS = ("plus_intermedio", "basico", "plus", "pro", "vps")
+
+
+def plans_in_text(text: str) -> str:
+    """Sustituye los nombres internos de plan en textos ya redactados (p. ej. «plan basico» → «plan Básico»)."""
+    return re.sub(r"\b(" + "|".join(PLANS) + r")\b", lambda m: OFFERS[m[1]], str(text))
