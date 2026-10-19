@@ -1,0 +1,29 @@
+[client]
+# Sin menú de opciones ni ajustes de desarrollador en la esquina superior derecha
+toolbarMode = "minimal"
+
+[ui]
+# Oculta la barra superior de la app (opción estándar de Streamlit, sin documentar en la web)
+hideTopBar = true
+
+# Tema inspirado en la paleta de un proveedor de hosting: azul corporativo, azul marino y Roboto.
+# Las secciones [theme.light] y [theme.dark] (Streamlit >= 1.51) mantienen los dos temas; cada viewer ve el de su sistema.
+# Todos los colores de gráficas tienen contraste >= 3:1 sobre ambos fondos (#ffffff y #0e141c).
+[theme]
+font = "Roboto:https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap, sans-serif"
+baseRadius = "6px"
+chartCategoricalColors = ["#2f80c8", "#d97706", "#d64545", "#1f9d55", "#9a6fd6", "#808891"]
+
+[theme.light]
+primaryColor = "#196ca1"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f3f6f9"
+textColor = "#1b2632"
+borderColor = "#d6dde5"
+
+[theme.dark]
+primaryColor = "#0ab1e4"
+backgroundColor = "#0e141c"
+secondaryBackgroundColor = "#1b2632"
+textColor = "#e7edf3"
+borderColor = "#2c3a4a"

@@ -1,6 +1,7 @@
 """Dashboard de BI de capacity-guard (Streamlit). Ejecutar: streamlit run dashboard/app.py"""
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -32,6 +33,9 @@ else:
     OUT = ROOT / "outputs" if _has_results(ROOT / "outputs") else ROOT / "demo"
 DEMO = OUT.resolve() == (ROOT / "demo").resolve()
 DATA = OUT / "data"
+# Paleta con significado fijo (contraste ≥3:1 sobre el fondo claro #ffffff y el oscuro #0e141c del tema):
+# gris = métrica, rojo = límite/saturación, azul = riesgo/modelo, ámbar = alarma
+C_METRIC, C_LIMIT, C_RISK, C_ALARM = "#808891", "#d64545", "#2f80c8", "#d97706"
 METHODS = {"threshold": "Umbral estático", "zscore": "Z-score estacional", "iforest": "Isolation Forest", "gbm": "Pronosticador GBM"}
 
 st.set_page_config(page_title="capacity-guard", page_icon="🛡️", layout="wide")
@@ -98,11 +102,24 @@ if not _has_results(OUT):
 
 R = load_results(_stamp())
 main_b = R["main"]["tasks"]["B"]["methods"]
-st.title("🛡️ capacity-guard")
 CSV = R.get("source", "sim") == "csv"
 CAP = R.get("capabilities", {})
-st.caption("Detección de anomalías y aviso temprano de saturación en servidores de hosting · "
-           + ("datos REALES (CSV)" if CSV else "datos SIMULADOS"))
+# Banda con fondo propio (texto blanco sobre azul, contraste 5,7:1): se ve igual en el tema claro y en el oscuro.
+# El logo del autor (PNG con fondo transparente) se pinta en blanco con un filtro CSS para que destaque sobre el azul.
+LOGO = Path(__file__).parent / "assets" / "logo_cmsr92.png"
+logo_html = (f'<img class="cg-logo" alt="CMSR92" src="data:image/png;base64,{base64.b64encode(LOGO.read_bytes()).decode()}">'
+             if LOGO.exists() else "")
+st.markdown(f"""<style>
+.cg-header {{background: linear-gradient(90deg, #196ca1 60%, #0b91ca); color: #fff; border-radius: 6px;
+  padding: 1.1rem 1.4rem; margin-bottom: 1rem; display: flex; flex-wrap: wrap; align-items: center;
+  justify-content: space-between; gap: 0.75rem 1.5rem}}
+.cg-header .cg-title {{font-size: 2rem; font-weight: 700; line-height: 1.2}}
+.cg-header .cg-sub {{font-size: 0.95rem; opacity: 0.95; margin-top: 0.25rem}}
+.cg-header .cg-logo {{height: 52px; width: auto; filter: brightness(0) invert(1)}}
+</style>
+<div class="cg-header"><div><div class="cg-title">capacity-guard</div>
+<div class="cg-sub">Detección de anomalías y aviso temprano de saturación en servidores de hosting ·
+{"datos reales (CSV)" if CSV else "datos simulados"}</div></div>{logo_html}</div>""", unsafe_allow_html=True)
 if DEMO:
     cfg = R["main"]["config"]
     st.info(f"Datos de demostración: instantánea versionada de `python -m capguard all` (semilla {cfg['seed']}, "
@@ -116,11 +133,11 @@ tabs = st.tabs(["Resumen", "Servidores", "Negocio", "Calidad de datos", "Modelo"
 with tabs[0]:
     g = main_b["gbm"]
     c = st.columns(5)
-    c[0].metric("Muestras", f"{R['ingest']['rows_final' if CSV else 'rows_clean']:,}")
-    c[1].metric("Saturaciones en test", g["n_events"])
-    c[2].metric("Avisadas ≥10 min antes (GBM)", f"{100 * g['early_rate']:.0f} %")
-    c[3].metric("Falsas alarmas/servidor·día", f"{g['false_alarms_per_server_day']:.2f}")
-    c[4].metric("AUC del pronosticador", f"{R['main']['gbm_sample_metrics']['roc_auc']:.2f}")
+    c[0].metric("Muestras", f"{R['ingest']['rows_final' if CSV else 'rows_clean']:,}", border=True)
+    c[1].metric("Saturaciones en test", g["n_events"], border=True)
+    c[2].metric("Avisadas ≥10 min antes (GBM)", f"{100 * g['early_rate']:.0f} %", border=True)
+    c[3].metric("Falsas alarmas/servidor·día", f"{g['false_alarms_per_server_day']:.2f}", border=True)
+    c[4].metric("AUC del pronosticador", f"{R['main']['gbm_sample_metrics']['roc_auc']:.2f}", border=True)
     rows = [{"Método": m["method"], "Detectadas": f"{100 * m['recall']:.0f} %", "Con ≥10 min de antelación": f"{100 * m['early_rate']:.0f} %",
              "Antelación mediana (min)": m["median_lead_min"], "Falsas alarmas / servidor·día": round(m["false_alarms_per_server_day"], 2)}
             for m in main_b.values()]
@@ -144,16 +161,16 @@ with tabs[1]:
         fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.03,
                             subplot_titles=("CPU %", "RAM %", "iowait %", "Riesgo de saturar en 30 min"))
         for i, (col, lim) in enumerate((("cpu", SAT_LIMITS["cpu"]), ("ram", SAT_LIMITS["ram"]), ("iowait", SAT_LIMITS["iowait"])), 1):
-            fig.add_trace(go.Scatter(x=d["timestamp"], y=d[col], mode="lines", line=dict(width=1.2, color="#222"), showlegend=False), row=i, col=1)
-            fig.add_hline(y=lim, line=dict(color="#c0392b", dash="dash", width=1), row=i, col=1)
-        fig.add_trace(go.Scatter(x=d["timestamp"], y=d["risk_gbm"], mode="lines", line=dict(color="#0072b2", width=1.2), showlegend=False), row=4, col=1)
+            fig.add_trace(go.Scatter(x=d["timestamp"], y=d[col], mode="lines", line=dict(width=1.2, color=C_METRIC), showlegend=False), row=i, col=1)
+            fig.add_hline(y=lim, line=dict(color=C_LIMIT, dash="dash", width=1), row=i, col=1)
+        fig.add_trace(go.Scatter(x=d["timestamp"], y=d["risk_gbm"], mode="lines", line=dict(color=C_RISK, width=1.2), showlegend=False), row=4, col=1)
         al = d[d["alert_B_gbm"]]
-        fig.add_trace(go.Scatter(x=al["timestamp"], y=al["risk_gbm"], mode="markers", marker=dict(color="#e69f00", size=5),
+        fig.add_trace(go.Scatter(x=al["timestamp"], y=al["risk_gbm"], mode="markers", marker=dict(color=C_ALARM, size=5),
                                  name="alarma", showlegend=True), row=4, col=1)
         for a, b, kind in segments(d, "event"):
-            fig.add_vrect(x0=a, x1=b, fillcolor="#999", opacity=0.12, line_width=0, annotation_text=label(kind), annotation_font_size=9)
+            fig.add_vrect(x0=a, x1=b, fillcolor=C_METRIC, opacity=0.18, line_width=0, annotation_text=label(kind), annotation_font_size=9)
         for a, b, _ in segments(d, "sat_now"):
-            fig.add_vrect(x0=a, x1=b, fillcolor="#c0392b", opacity=0.20, line_width=0)
+            fig.add_vrect(x0=a, x1=b, fillcolor=C_LIMIT, opacity=0.20, line_width=0)
         fig.update_layout(height=640, margin=dict(l=10, r=10, t=40, b=10), legend=dict(orientation="h"))
         st.plotly_chart(fig, width="stretch")
         st.caption("Gris = evento en curso (con su causa) · rojo = saturación · naranja = alarma del pronosticador. "
@@ -163,14 +180,14 @@ with tabs[2]:
     e = R["eda"]
     if "by_kind" in e:
         c = st.columns(3)
-        c[0].metric("Incidentes (simulados)", e["n_incidents"])
-        c[1].metric("Por servidor y mes", f"{e['incidents_per_server_month']:.0f}")
-        c[2].metric("Tipo con más tiempo saturado", label(e["worst_kind_for_saturation"]))
+        c[0].metric("Incidentes (simulados)", e["n_incidents"], border=True)
+        c[1].metric("Por servidor y mes", f"{e['incidents_per_server_month']:.0f}", border=True)
+        c[2].metric("Tipo con más tiempo saturado", label(e["worst_kind_for_saturation"]), border=True)
         kinds = pd.DataFrame(e["by_kind"]).assign(kind=lambda k: k["kind"].map(label))
         col1, col2 = st.columns(2)
         col1.bar_chart(pd.Series(e["by_hour"], name="incidentes"), height=260)
         col1.caption("Inicio de incidentes por hora del día")
-        col2.bar_chart(kinds.set_index("kind")["min_saturados"] / 60, height=260)
+        col2.bar_chart(kinds.set_index("kind")["min_saturados"] / 60, height=260, color=C_LIMIT)
         col2.caption("Horas de saturación por tipo de incidente")
     else:
         st.info(CAP.get("incident_eda_reason", "Sin etiquetas de incidentes."))
@@ -183,7 +200,7 @@ with tabs[2]:
     ct = analysis.cost_table(main_b, {"c_miss": c_miss, "c_fa": c_fa, "c_mitigated": c_mit})
     best = ct.loc[ct["coste_total"].idxmin(), "method"]
     st.dataframe(ct[["method", "avisadas_a_tiempo", "no_avisadas", "falsas_alarmas", "coste_total", "coste_por_servidor_mes", "ahorro_vs_umbral_pct"]]
-                 .rename(columns={"method": "Método"}), hide_index=True, width="stretch")
+                 .rename(columns=label), hide_index=True, width="stretch")
     st.success(f"Con estos costes, el método más barato es: **{best}**")
 
 with tabs[3]:
@@ -198,7 +215,8 @@ with tabs[3]:
     names = [c["name"] for c in q["quality_before"]["checks"]]
     before = {c["name"]: c["violations"] for c in q["quality_before"]["checks"]}
     after = {c["name"]: c["violations"] for c in q["quality_after"]["checks"]}
-    st.dataframe(pd.DataFrame({"comprobación": names, "antes": [before[n] for n in names], "después": [after.get(n, 0) for n in names]}),
+    st.dataframe(pd.DataFrame({"Comprobación": [label(n) for n in names], "Antes": [before[n] for n in names],
+                               "Después": [after.get(n, 0) for n in names]}),
                  hide_index=True, width="stretch")
     if not CSV:
         st.write("Error de la imputación (% de la desviación típica de cada métrica):")
@@ -208,17 +226,18 @@ with tabs[3]:
 with tabs[4]:
     st.subheader("Walk-forward (3 periodos futuros)")
     wf = pd.DataFrame(R["walk_forward"])
-    st.dataframe(wf.pivot_table(index="method", columns="test_days", values="early_rate").round(2), width="stretch")
+    st.dataframe(wf.pivot_table(index="method", columns="test_days", values="early_rate").round(2)
+                 .rename_axis(index=label("method"), columns=label("test_days")), width="stretch")
     st.caption("Fracción de saturaciones avisadas ≥10 min antes, por periodo de test.")
     c1, c2 = st.columns(2)
     imp = pd.DataFrame(R["importance"]).assign(feature=lambda f: f["feature"].map(feature)).set_index("feature")["importance"]
     c1.write("Importancia de variables (permutación)")
-    c1.bar_chart(imp, height=300)
+    c1.bar_chart(imp, height=300, color=C_RISK)
     ae = R["deep"]["B"]
     c2.write("Autoencoder (deep learning), tarea B")
-    c2.metric(KPIS["detectadas"], f"{100 * ae['recall']:.0f} %")
-    c2.metric(KPIS["avisadas_>=10min"], f"{100 * ae['early_rate']:.0f} %")
-    c2.metric(KPIS["falsas_alarmas_servidor_dia"], f"{ae['false_alarms_per_server_day']:.2f}")
+    c2.metric(KPIS["detectadas"], f"{100 * ae['recall']:.0f} %", border=True)
+    c2.metric(KPIS["avisadas_>=10min"], f"{100 * ae['early_rate']:.0f} %", border=True)
+    c2.metric(KPIS["falsas_alarmas_servidor_dia"], f"{ae['false_alarms_per_server_day']:.2f}", border=True)
     st.subheader("Diagnóstico de causa")
     dg = R["diagnosis"] or {"by_lag": {}}
     if not R["diagnosis"]:
@@ -236,16 +255,17 @@ with tabs[5]:
         feats = pd.DataFrame(customers.get("features", []))
         offers = pd.DataFrame(customers.get("offers", []))
         m = st.columns(4)
-        m[0].metric("Cuentas", customers["n_accounts"])
-        m[1].metric("Cerca de su límite", customers["n_flagged"])
-        m[2].metric("Con causa técnica (sin venta)", len(customers.get("technical_accounts", [])))
-        m[3].metric("Borradores comerciales", int(offers["oferta"].isin(["upgrade", "temporal"]).sum()) if not offers.empty else 0)
+        m[0].metric("Cuentas", customers["n_accounts"], border=True)
+        m[1].metric("Cerca de su límite", customers["n_flagged"], border=True)
+        m[2].metric("Con causa técnica (sin venta)", len(customers.get("technical_accounts", [])), border=True)
+        m[3].metric("Borradores comerciales", int(offers["oferta"].isin(["upgrade", "temporal"]).sum()) if not offers.empty else 0,
+                    border=True)
         st.warning(f"Todas las ofertas son borradores en estado «{label('pendiente_revision')}»: nada se envía sin aprobación humana.")
         c1, c2 = st.columns(2)
         cluster_values = ["Todos"] + sorted(offers["cluster"].dropna().unique().tolist()) if not offers.empty else ["Todos"]
         offer_values = ["Todos"] + sorted(offers["oferta"].dropna().unique().tolist()) if not offers.empty else ["Todos"]
-        cluster = c1.selectbox("Cluster", cluster_values, key="customer_cluster")
-        offer = c2.selectbox("Oferta", offer_values, key="customer_offer")
+        cluster = c1.selectbox("Cluster", cluster_values, key="customer_cluster", format_func=label)
+        offer = c2.selectbox("Oferta", offer_values, key="customer_offer", format_func=label)
         if cluster != "Todos":
             offers = offers[offers["cluster"] == cluster]
         if offer != "Todos":
@@ -253,9 +273,9 @@ with tabs[5]:
         cols = ["account_id", "cluster", "oferta", "plan_actual", "plan_propuesto", "precio_actual", "precio_propuesto",
                 "estado", "motivo"]
         shown = offers[[c for c in cols if c in offers]]
-        if "estado" in shown:
-            shown = shown.assign(estado=shown["estado"].map(label))
-        st.dataframe(shown, hide_index=True, width="stretch")
+        shown = shown.assign(**{c: shown[c].map(label, na_action="ignore") for c in ("cluster", "oferta", "plan_actual", "plan_propuesto", "estado")
+                                if c in shown})
+        st.dataframe(shown.rename(columns=label), hide_index=True, width="stretch")
         value = customers.get("offer_value", {})
         if value.get("sensitivity"):
             st.caption("Valor mensual adicional con distintas tasas de aceptación (SUPUESTO ilustrativo): " + " · ".join(
@@ -269,7 +289,7 @@ with tabs[5]:
                 plan = offers.set_index("account_id").loc[pick, "plan_actual"]
                 if plan in PLANS and not u.empty:
                     pct = pd.DataFrame({r: 100 * u[r].astype(float) / getattr(PLANS[plan], LIMIT_FIELD[r])
-                                        for r in RESOURCES}).set_index(u["timestamp"])
+                                        for r in RESOURCES}).set_index(u["timestamp"]).rename(columns=label)
                     st.line_chart(pct, height=240)
                     st.caption("% del límite del plan por hora y recurso (100 % = limitado).")
             st.write(_md(offers.set_index("account_id").loc[pick, "texto"]))

@@ -16,6 +16,7 @@ USER app
 
 COPY --chown=app capguard ./capguard
 COPY --chown=app dashboard ./dashboard
+COPY --chown=app .streamlit ./.streamlit
 COPY --chown=app docs ./docs
 
 # Los artefactos (modelo, datos, informe) se generan al construir la imagen: el contenedor arranca al instante.
