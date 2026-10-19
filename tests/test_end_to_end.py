@@ -121,7 +121,7 @@ def test_dashboard_renders_and_reacts(built, monkeypatch):
     at.selectbox(key="alert_pick").set_value(2).run()
     assert not at.exception
     at.selectbox(key="customer_offer").set_value("upgrade").run()  # pestaña Clientes
-    assert not at.exception and any("pendiente_revision" in w.value for w in at.warning)
+    assert not at.exception and any("Pendiente de revisión" in w.value for w in at.warning)
     picks = at.selectbox(key="customer_account").options
     at.selectbox(key="customer_account").set_value(picks[-1]).run()
     assert not at.exception

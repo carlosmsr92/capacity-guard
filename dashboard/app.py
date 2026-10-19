@@ -17,6 +17,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from capguard import analysis  # noqa: E402
 from capguard.simulator import SAT_LIMITS  # noqa: E402
+from dashboard.labels import KPIS, feature, label  # noqa: E402
 
 
 def _has_results(d: Path) -> bool:
@@ -150,7 +151,7 @@ with tabs[1]:
         fig.add_trace(go.Scatter(x=al["timestamp"], y=al["risk_gbm"], mode="markers", marker=dict(color="#e69f00", size=5),
                                  name="alarma", showlegend=True), row=4, col=1)
         for a, b, kind in segments(d, "event"):
-            fig.add_vrect(x0=a, x1=b, fillcolor="#999", opacity=0.12, line_width=0, annotation_text=kind, annotation_font_size=9)
+            fig.add_vrect(x0=a, x1=b, fillcolor="#999", opacity=0.12, line_width=0, annotation_text=label(kind), annotation_font_size=9)
         for a, b, _ in segments(d, "sat_now"):
             fig.add_vrect(x0=a, x1=b, fillcolor="#c0392b", opacity=0.20, line_width=0)
         fig.update_layout(height=640, margin=dict(l=10, r=10, t=40, b=10), legend=dict(orientation="h"))
@@ -164,8 +165,8 @@ with tabs[2]:
         c = st.columns(3)
         c[0].metric("Incidentes (simulados)", e["n_incidents"])
         c[1].metric("Por servidor y mes", f"{e['incidents_per_server_month']:.0f}")
-        c[2].metric("Tipo con más tiempo saturado", e["worst_kind_for_saturation"])
-        kinds = pd.DataFrame(e["by_kind"])
+        c[2].metric("Tipo con más tiempo saturado", label(e["worst_kind_for_saturation"]))
+        kinds = pd.DataFrame(e["by_kind"]).assign(kind=lambda k: k["kind"].map(label))
         col1, col2 = st.columns(2)
         col1.bar_chart(pd.Series(e["by_hour"], name="incidentes"), height=260)
         col1.caption("Inicio de incidentes por hora del día")
@@ -201,7 +202,7 @@ with tabs[3]:
                  hide_index=True, width="stretch")
     if not CSV:
         st.write("Error de la imputación (% de la desviación típica de cada métrica):")
-        st.dataframe(pd.Series(q["imputation_mae_vs_metric_std"]).mul(100).round(1).rename("%").to_frame().T,
+        st.dataframe(pd.Series(q["imputation_mae_vs_metric_std"]).rename(label).mul(100).round(1).rename("%").to_frame().T,
                      width="stretch")
 
 with tabs[4]:
@@ -210,20 +211,22 @@ with tabs[4]:
     st.dataframe(wf.pivot_table(index="method", columns="test_days", values="early_rate").round(2), width="stretch")
     st.caption("Fracción de saturaciones avisadas ≥10 min antes, por periodo de test.")
     c1, c2 = st.columns(2)
-    imp = pd.DataFrame(R["importance"]).set_index("feature")["importance"]
+    imp = pd.DataFrame(R["importance"]).assign(feature=lambda f: f["feature"].map(feature)).set_index("feature")["importance"]
     c1.write("Importancia de variables (permutación)")
     c1.bar_chart(imp, height=300)
     ae = R["deep"]["B"]
     c2.write("Autoencoder (deep learning), tarea B")
-    c2.json({"detectadas": round(ae["recall"], 2), "avisadas_>=10min": round(ae["early_rate"], 2),
-             "falsas_alarmas_servidor_dia": round(ae["false_alarms_per_server_day"], 2)})
+    c2.metric(KPIS["detectadas"], f"{100 * ae['recall']:.0f} %")
+    c2.metric(KPIS["avisadas_>=10min"], f"{100 * ae['early_rate']:.0f} %")
+    c2.metric(KPIS["falsas_alarmas_servidor_dia"], f"{ae['false_alarms_per_server_day']:.2f}")
     st.subheader("Diagnóstico de causa")
     dg = R["diagnosis"] or {"by_lag": {}}
     if not R["diagnosis"]:
         st.info(CAP.get("diagnosis_reason", "Diagnóstico no disponible."))
     for lag, v in dg["by_lag"].items():
         st.write(f"**{lag}** · {v['n']} eventos · acierto {100 * v['accuracy']:.0f} % (clase mayoritaria {100 * v['majority_baseline']:.0f} %)")
-        st.dataframe(pd.DataFrame(v["confusion"], index=[f"real: {l}" for l in v["labels"]], columns=v["labels"]), width="stretch")
+        names = [label(k) for k in v["labels"]]
+        st.dataframe(pd.DataFrame(v["confusion"], index=[f"real: {k}" for k in names], columns=names), width="stretch")
 
 with tabs[5]:
     customers = R.get("customers", {})
@@ -237,7 +240,7 @@ with tabs[5]:
         m[1].metric("Cerca de su límite", customers["n_flagged"])
         m[2].metric("Con causa técnica (sin venta)", len(customers.get("technical_accounts", [])))
         m[3].metric("Borradores comerciales", int(offers["oferta"].isin(["upgrade", "temporal"]).sum()) if not offers.empty else 0)
-        st.warning("Todas las ofertas son borradores en estado `pendiente_revision`: nada se envía sin aprobación humana.")
+        st.warning(f"Todas las ofertas son borradores en estado «{label('pendiente_revision')}»: nada se envía sin aprobación humana.")
         c1, c2 = st.columns(2)
         cluster_values = ["Todos"] + sorted(offers["cluster"].dropna().unique().tolist()) if not offers.empty else ["Todos"]
         offer_values = ["Todos"] + sorted(offers["oferta"].dropna().unique().tolist()) if not offers.empty else ["Todos"]
@@ -249,7 +252,10 @@ with tabs[5]:
             offers = offers[offers["oferta"] == offer]
         cols = ["account_id", "cluster", "oferta", "plan_actual", "plan_propuesto", "precio_actual", "precio_propuesto",
                 "estado", "motivo"]
-        st.dataframe(offers[[c for c in cols if c in offers]], hide_index=True, width="stretch")
+        shown = offers[[c for c in cols if c in offers]]
+        if "estado" in shown:
+            shown = shown.assign(estado=shown["estado"].map(label))
+        st.dataframe(shown, hide_index=True, width="stretch")
         value = customers.get("offer_value", {})
         if value.get("sensitivity"):
             st.caption("Valor mensual adicional con distintas tasas de aceptación (SUPUESTO ilustrativo): " + " · ".join(
