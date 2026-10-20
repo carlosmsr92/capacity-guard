@@ -53,6 +53,11 @@ def load_results(stamp: int) -> dict:
     return json.loads((OUT / "results.json").read_text())
 
 
+def json_legible(data) -> str:
+    """JSON sangrado y sin resaltado de sintaxis: los colores del visor de st.json no llegan a 4,5:1 en el tema claro."""
+    return json.dumps(data, indent=2, ensure_ascii=False, default=str)
+
+
 def _md(text) -> str:
     """Escapa markdown en textos con datos del CSV (nombres de servidor, cuentas, etiquetas): solo se muestran."""
     return re.sub(r"([\\`*_{}\[\]()<>#+!|~])", r"\\\1", str(text))
@@ -123,13 +128,13 @@ CAP = R.get("capabilities", {})
 st.markdown("""<style>
 [data-testid="stMetricValue"] div, [data-testid="stMetricValue"] p {white-space: normal; text-overflow: clip; line-height: 1.2}
 </style>""", unsafe_allow_html=True)
-cabecera("capacity-guard", "Detección de anomalías y aviso temprano de saturación en servidores de hosting · "
+cabecera("capacity-guard", "Avisa antes de que un servidor de hosting se sature y detecta clientes cerca del límite de su plan · "
          + ("datos reales (CSV)" if CSV else "datos simulados"))
 if DEMO:
     cfg = R["main"]["config"]
-    st.info(f"Datos de demostración: instantánea versionada de `python -m capguard all` (semilla {cfg['seed']}, "
-            f"{cfg['n_servers']} servidores × {cfg['days']} días). Para usar resultados propios, ejecuta el pipeline "
-            "en local; el dashboard leerá outputs/ automáticamente.")
+    st.info(f"Estás viendo datos de demostración: una copia de los resultados de `python -m capguard all` "
+            f"(semilla {cfg['seed']}, {cfg['n_servers']} servidores durante {cfg['days']} días). Si ejecutas ese "
+            "comando en local, el dashboard mostrará tus propios resultados.")
 skipped = [CAP[f"{k}_reason"] for k, v in CAP.items() if v is False and f"{k}_reason" in CAP]
 if skipped:
     st.warning("Partes omitidas con estos datos: " + " · ".join(_md(s) for s in skipped))
@@ -148,8 +153,8 @@ with tabs[0]:
             for m in main_b.values()]
     st.subheader("Aviso temprano de saturación (periodo de test)")
     st.dataframe(tabla(pd.DataFrame(rows), {"Antelación mediana (min)": 0}), hide_index=True, width="stretch")
-    st.info("Cada método se calibra en validación para no superar un presupuesto de falsas alarmas; el umbral estático se deja "
-            "como lo configuraría una monitorización clásica.")
+    st.info("Cada método se ajusta con datos de validación para no pasar de un número máximo de falsas alarmas. "
+            "El umbral fijo se deja como lo pondría una monitorización clásica, para tener con qué comparar.")
 
 with tabs[1]:
     t0, t1 = bounds(_stamp())
@@ -179,8 +184,8 @@ with tabs[1]:
         fig.update_layout(height=640, margin=dict(l=10, r=10, t=40, b=10), legend=dict(orientation="h"))
         fig.update_xaxes(tickformat="%d/%m", hoverformat="%d/%m %H:%M")  # fechas sin nombres de mes en inglés
         grafico(fig, width="stretch")
-        st.caption("Gris = evento en curso (con su causa) · rojo = saturación · naranja = alarma del pronosticador. "
-                   "Fuera del periodo de test el modelo ha visto esos datos al entrenar.")
+        st.caption("Gris: incidente en curso (con su causa) · rojo: saturación · naranja: alarma del modelo. "
+                   "Fuera del periodo de prueba el modelo ya vio esos datos al entrenar, así que ahí no cuenta como evaluación.")
 
 with tabs[2]:
     e = R["eda"]
@@ -199,7 +204,7 @@ with tabs[2]:
     else:
         st.info(CAP.get("incident_eda_reason", "Sin etiquetas de incidentes."))
     st.subheader("Modelo de coste (editable)")
-    st.caption("Valores de ejemplo: sustitúyelos por los de la empresa (créditos de SLA, coste de guardia).")
+    st.caption("Son valores de ejemplo: cámbialos por los de tu empresa (compensaciones al cliente por caídas, coste de la guardia).")
     s1, s2, s3 = st.columns(3)
     c_miss = s1.slider("Coste de NO avisar a tiempo (€)", 10, 2000, 200, 10, key="c_miss")
     c_fa = s2.slider("Coste de una falsa alarma (€)", 1, 300, 15, 1, key="c_fa")
@@ -218,8 +223,8 @@ with tabs[3]:
                  f"conversiones: {_md(', '.join(q['unit_conversions']) or 'ninguna')} · "
                  f"columnas ignoradas: {_md(', '.join(q['ignored_columns']) or 'ninguna')}.")
     else:
-        st.write(f"Feed sucio: {fni(q['rows_dirty'])} filas → reparado: {fni(q['rows_clean'])} (verdad: {fni(q['rows_truth'])}). "
-                 f"Filas imputadas: {q['imputed_rows']}.")
+        st.write(f"Datos con errores: {fni(q['rows_dirty'])} filas → tras repararlos: {fni(q['rows_clean'])} "
+                 f"(las correctas eran {fni(q['rows_truth'])}). Filas rellenadas: {q['imputed_rows']}.")
     names = [c["name"] for c in q["quality_before"]["checks"]]
     before = {c["name"]: c["violations"] for c in q["quality_before"]["checks"]}
     after = {c["name"]: c["violations"] for c in q["quality_after"]["checks"]}
@@ -227,7 +232,7 @@ with tabs[3]:
                                      "Después": [after.get(n, 0) for n in names]})),
                  hide_index=True, width="stretch")
     if not CSV:
-        st.write("Error de la imputación (% de la desviación típica de cada métrica):")
+        st.write("Error de los valores rellenados, en % de la variación típica de cada métrica:")
         st.dataframe(tabla(pd.Series(q["imputation_mae_vs_metric_std"]).rename(label).mul(100).rename("%").to_frame().T, 1),
                      width="stretch")
 
@@ -236,7 +241,7 @@ with tabs[4]:
     wf = pd.DataFrame(R["walk_forward"])
     st.dataframe(tabla(wf.pivot_table(index="method", columns="test_days", values="early_rate")
                        .rename_axis(index=label("method"), columns=label("test_days"))), width="stretch")
-    st.caption("Fracción de saturaciones avisadas ≥10 min antes, por periodo de test.")
+    st.caption("Porcentaje de saturaciones avisadas con al menos 10 minutos de margen, en cada periodo de prueba.")
     c1, c2 = st.columns(2)
     imp = pd.DataFrame(R["importance"]).assign(feature=lambda f: f["feature"].map(feature))
     c1.write("Importancia de variables (permutación)")
@@ -268,7 +273,7 @@ with tabs[5]:
         m[2].metric("Con causa técnica (sin venta)", len(customers.get("technical_accounts", [])), border=True)
         m[3].metric("Borradores comerciales", int(offers["oferta"].isin(["upgrade", "temporal"]).sum()) if not offers.empty else 0,
                     border=True)
-        st.warning(f"Todas las ofertas son borradores en estado «{label('pendiente_revision')}»: nada se envía sin aprobación humana.")
+        st.warning(f"Todas las ofertas son borradores («{label('pendiente_revision')}»): ninguna se envía sin que una persona la apruebe.")
         c1, c2 = st.columns(2)
         cluster_values = ["Todos"] + sorted(offers["cluster"].dropna().unique().tolist()) if not offers.empty else ["Todos"]
         offer_values = ["Todos"] + sorted(offers["oferta"].dropna().unique().tolist()) if not offers.empty else ["Todos"]
@@ -288,7 +293,7 @@ with tabs[5]:
         st.dataframe(tabla(shown.rename(columns=label)), hide_index=True, width="stretch")
         value = customers.get("offer_value", {})
         if value.get("sensitivity"):
-            st.caption("Valor mensual adicional con distintas tasas de aceptación (SUPUESTO ilustrativo): " + " · ".join(
+            st.caption("Ingresos extra al mes según cuántas ofertas se acepten (es una suposición para ilustrar, no un dato): " + " · ".join(
                 f"{fn0(100 * s['acceptance'])} % → {fn0(s['expected_monthly_value'])} €" for s in value["sensitivity"]))
         if not offers.empty:
             pick = st.selectbox("Cuenta", offers["account_id"].tolist(), key="customer_account")
@@ -308,8 +313,8 @@ with tabs[5]:
                     ).properties(height=240).configure(locale=ALT_ES), width="stretch")
                     st.caption("% del límite del plan por hora y recurso (100 % = limitado).")
             st.write(_md(texto_es(plans_in_text(offers.set_index("account_id").loc[pick, "texto"]))))
-            with st.expander("Evidencia usada para redactar la oferta"):
-                st.json(offers.set_index("account_id").loc[pick, "evidencia"])
+            with st.expander("Datos con los que se redactó la oferta"):
+                st.code(json_legible(offers.set_index("account_id").loc[pick, "evidencia"]), language=None)
 
 with tabs[6]:
     exp = json.loads((DATA / "alerts_explained.json").read_text())
@@ -319,8 +324,8 @@ with tabs[6]:
         labels = [f"{e['server']} · {e['timestamp']}" for e in exp]
         pick = st.selectbox("Alarma", range(len(exp)), format_func=lambda i: labels[i], key="alert_pick")
         st.write(_md(texto_es(exp[pick]["text"])))
-        st.caption(f"Procedencia: {exp[pick]['source']}" + (f" · guardarraíl: {exp[pick]['guardrail']}" if exp[pick]["guardrail"] else ""))
-        with st.expander("Evidencia usada (lo único que puede ver el redactor)"):
-            st.json(exp[pick]["evidence"])
+        st.caption(f"Redactado con: {exp[pick]['source']}" + (f" · control de cifras: {exp[pick]['guardrail']}" if exp[pick]["guardrail"] else ""))
+        with st.expander("Datos con los que se redactó (el texto no puede usar nada más)"):
+            st.code(json_legible(exp[pick]["evidence"]), language=None)
 
 pie("capacity-guard")

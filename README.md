@@ -3,9 +3,11 @@
 ![Python](https://img.shields.io/badge/python-3.11%20|%203.12%20|%203.13-3776ab)
 ![License](https://img.shields.io/badge/licencia-MIT-green)
 
-**Detección de anomalías y aviso temprano de saturación en servidores de hosting**, de extremo a extremo: ingesta y
-calidad de datos, almacenamiento columnar, modelos de machine learning, análisis de negocio, dashboard de BI y
-explicaciones de alarmas redactadas con IA generativa bajo un guardarraíl.
+**capacity-guard avisa con antelación cuando un servidor de hosting está a punto de saturarse** y explica por qué.
+También analiza a los clientes: detecta las cuentas que se acercan al límite de su plan y prepara borradores de ofertas
+comerciales, que siempre revisa una persona antes de enviarse. El proyecto cubre todo el recorrido: lectura y limpieza
+de los datos, modelos de machine learning, un dashboard y explicaciones de cada alarma que pueden redactarse con IA,
+descartando cualquier texto con cifras que no estén en los datos.
 
 🔗 **Dashboard:** [capacity-guard.streamlit.app](https://capacity-guard.streamlit.app/)
 
@@ -14,9 +16,11 @@ A partir de métricas cada 5 minutos (CPU, RAM, iowait, red, load, peticiones/mi
 1. detecta comportamientos anómalos respecto a lo normal para esa hora de la semana,
 2. estima la probabilidad de que un servidor **sature en los próximos 30 minutos**,
 3. diagnostica la causa más probable (vecino ruidoso, fuga de memoria, fuerza bruta, disco, pico legítimo) y
-4. explica la alarma al técnico de guardia con datos verificables.
+4. explica la alarma al técnico de guardia con datos verificables y
+5. detecta las cuentas de clientes que rozan el límite de su plan y redacta borradores de ofertas comerciales.
 
-**Avisa y sugiere; no actúa ni sustituye a las personas. Las ofertas son borradores `pendiente_revision`: nunca se envían solas.**
+**Avisa y sugiere, pero no actúa por su cuenta: las decisiones son de las personas. Las ofertas se quedan en borrador
+(`pendiente_revision`) hasta que alguien las aprueba.**
 
 ## Usar tus propios datos
 
@@ -26,7 +30,7 @@ python -m capguard all --source csv --metrics mis_metricas.csv --out outputs
 python -m capguard score --input mis_metricas.csv --model outputs/model.joblib
 ```
 
-La ingesta acepta alias de columnas, separadores `,` `;` y tabulador, UTF-8 o latin-1, coma decimal y separador de
+Al leer el CSV acepta alias de columnas, separadores `,` `;` y tabulador, UTF-8 o latin-1, coma decimal y separador de
 miles (`1.234,56`), fracciones en lugar de porcentajes, fechas día/mes (si son ambiguas exige `--date-format`), datos
 cada minuto (se agregan a 5) y mapeos explícitos con `--mapping mapping.json`. Lo que no puede interpretar lo rechaza
 con un mensaje que dice qué columna falla y por qué; nunca inventa huecos largos ni etiquetas. Sin columna `event` se
@@ -38,7 +42,7 @@ clientes. Hay CSV de ejemplo en [`examples/`](examples/) y el formato está en [
 | | |
 |---|---|
 | **Problema** | Los umbrales fijos (CPU > 85 %) avisan tarde o demasiado: la guardia se entera cuando el cliente ya lo nota. |
-| **Enfoque** | Variables causales con línea base estacional por servidor + GBM supervisado, umbral calibrado con un **presupuesto de falsas alarmas**, evaluación **por evento** (¿se avisó? ¿con cuántos minutos?), no solo por muestra. |
+| **Enfoque** | Compara cada métrica con lo normal para ese servidor a esa hora de la semana y entrena un modelo (gradient boosting) que estima el riesgo de saturación. El umbral de alarma se ajusta para no pasar de un **número máximo de falsas alarmas**, y se evalúa **por incidente** (¿se avisó? ¿con cuántos minutos de margen?), no solo por muestra. |
 | **Resultado (simulado)** | Repetido en 3 mundos simulados, el GBM avisa con ≥10 min de antelación del 41 % ± 9 de las saturaciones, frente al 37 % del z-score estacional y el 23 % del umbral fijo, y con menos falsas alarmas que el z-score (0,42 frente a 0,46 por servidor y día). En walk-forward (3 periodos futuros) también es el mejor: 35 % ± 10 frente a 27 % ± 16. No gana en todos los mundos: en la semilla principal el z-score avisa más (41 % frente a 33 %). |
 | **Clientes** | Detecta las cuentas que rozan repetidamente el límite de su plan (52 de 320), las agrupa en segmentos interpretables (ARI 0,95 frente a los perfiles simulados) y redacta ofertas en borrador para revisión humana; las cuentas con causa técnica nunca reciben una venta. |
 | **Rigor** | Partición temporal, test de causalidad de las variables, walk-forward, calibración, importancia por permutación, prueba con etiquetas barajadas, repetición con varias semillas y validación sobre datos reales públicos (NAB). |
@@ -63,7 +67,7 @@ flowchart LR
   F --> G4[Autoencoder]
   G2 --> H[Diagnóstico de causa]
   G3 --> I[Alarma con presupuesto<br/>de falsas alarmas]
-  H --> J[Explicación: plantilla<br/>o LLM con guardarraíl]
+  H --> J[Explicación: plantilla<br/>o LLM con control de cifras]
   I --> J
   J --> K[Técnico de guardia]
   D --> L[Dashboard BI]
@@ -81,13 +85,13 @@ Decisiones de diseño: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · pregunt
 | Disciplina | Qué hay | Cómo se verificó |
 |---|---|---|
 | **Ingeniería de datos** | Contrato de datos y reparación trazable (`quality.py`, `ingest.py`), Parquet + DuckDB (`store.py`) | Se corrompe un feed (duplicados, nulos, valores imposibles, huecos) y se mide el error de la reparación contra la verdad oculta |
-| **Clientes y ofertas** | Utilización por plan, regla auditable validada hacia delante, KMeans estable con nombres por reglas, guarda técnica y ofertas en borrador (`segments.py`, `offers.py`) | Ninguna cuenta holgada marcada, ARI frente a los arquetipos simulados, nunca una venta a cuentas técnicas (con y sin etiquetas), textos que pasan el guardarraíl de cifras |
+| **Clientes y ofertas** | Utilización por plan, regla auditable validada hacia delante, KMeans estable con nombres por reglas, exclusión de cuentas con causa técnica y ofertas en borrador (`segments.py`, `offers.py`) | Ninguna cuenta holgada marcada, ARI frente a los arquetipos simulados, nunca una venta a cuentas técnicas (con y sin etiquetas), textos sin cifras inventadas |
 | **Big data** | Mismas variables con pandas y con DuckDB hasta ~26 M de filas (`scale.py`) | Un test exige resultados idénticos entre ambos motores y el pipeline de modelado; memoria pico medida por proceso |
 | **Análisis de datos** | EDA de incidentes y modelo de coste con análisis de sensibilidad (`analysis.py`) | Tests de la aritmética de costes y de que el EDA coincide con la verdad-terreno |
 | **Business Intelligence** | Dashboard Streamlit de 7 pestañas (incluida «Clientes») con filtros y costes editables (`dashboard/`) | Test sin navegador (AppTest) con interacciones reales: cambiar servidor, rango, sliders y filtros de ofertas |
 | **Machine learning** | Variables causales, GBM, evaluación por evento, walk-forward, calibración, importancia por permutación, diagnóstico multiclase | Test de causalidad; walk-forward en 3 periodos; con etiquetas barajadas el diagnóstico cae al nivel del azar |
 | **Deep learning** | Autoencoder sobre ventanas de 1 h (`deep.py`) | Mismo protocolo que el resto; **no gana** y se reporta |
-| **IA generativa** | Explicación de alarmas: hechos medidos → texto; LLM opcional con guardarraíl que rechaza cifras inventadas (`explain.py`) | Tests con cliente simulado: cifra inventada, cifra truncada, respuesta cortada y caída del servicio |
+| **IA generativa** | Explicación de alarmas: hechos medidos → texto; LLM opcional; si su texto trae alguna cifra que no está en los datos, se descarta y se usa la plantilla (`explain.py`) | Tests con cliente simulado: cifra inventada, cifra truncada, respuesta cortada y caída del servicio |
 | **MLOps** | MLflow, modelo versionado con las versiones de sus librerías, Docker, CI, `requirements.lock` | CI construye la imagen y comprueba que el dashboard responde; `scripts/verify.sh` reconstruye todo desde cero |
 
 **Stack:** Python · pandas · NumPy · SciPy · scikit-learn · DuckDB · PyArrow/Parquet · MLflow · Streamlit · Plotly ·
@@ -113,7 +117,7 @@ streamlit run dashboard/app.py            # dashboard interactivo
 python -m pytest -q                       # batería de tests
 ```
 
-El informe completo, con todas las figuras, se genera en `outputs/report.html` (fichero autocontenido). Los artefactos
+El informe completo, con todas las figuras, se genera en `outputs/report.html` (fichero autocontenido). Los ficheros
 generados (informe, Parquet, modelo) no se versionan en git: en el repositorio solo están `outputs/results.json`,
 `outputs/RESULTS.md` y `outputs/real_results.csv`, de donde salen las cifras de este README. El dashboard usa `outputs/` si
 has ejecutado `python -m capguard all` (Docker lo hace al construir la imagen); si no, muestra la instantánea de
@@ -246,7 +250,7 @@ capguard/
   simulator.py features.py           datos simulados y variables causales
   models.py pipeline.py evaluation.py  cuatro detectores, calibración de alarmas y evaluación por evento
   validation.py                      walk-forward, calibración, importancia
-  deep.py diagnosis.py explain.py    autoencoder, causa probable, explicación con guardarraíl
+  deep.py diagnosis.py explain.py    autoencoder, causa probable, explicación con control de cifras
   analysis.py scale.py real.py       negocio/costes, prueba de escala, validación con datos reales
   orchestrate.py report*.py summary.py  pipeline completo, informe HTML y resumen para este README
   bundle.py tracking.py __main__.py  modelo serializado, MLflow y CLI
@@ -255,7 +259,7 @@ demo/                                instantánea pequeña de resultados para el
 tests/                               unitarios, extremo a extremo, CLI y dashboard
 docs/                                arquitectura, formato de datos, preguntas frecuentes, benchmark de escala
 examples/                            CSV de ejemplo (métricas limpias y «sucias», cuentas, uso y planes)
-outputs/                             artefactos generados; en git solo results.json, RESULTS.md y real_results.csv
+outputs/                             resultados generados; en git solo results.json, RESULTS.md y real_results.csv
 requirements.txt / requirements.lock dependencias (rangos verificados / versiones exactas)
 ```
 

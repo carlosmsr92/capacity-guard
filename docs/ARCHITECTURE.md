@@ -17,7 +17,7 @@ flowchart LR
   D --> N[Cuentas y uso horario]
   N --> O[Proximidad al límite y clustering]
   O --> P[Oferta en borrador · revisión humana]
-  H --> J[Evidencia + explicación<br/>plantilla / LLM con guardarraíl]
+  H --> J[Evidencia + explicación<br/>plantilla / LLM con control de cifras]
   I --> J
   J --> K[Técnico de guardia<br/>decide y actúa]
   D --> L[Dashboard BI]
@@ -48,7 +48,7 @@ entre los k estables) y nombra cada grupo con reglas fijas sobre su centroide, m
 Las cuentas con causa técnica (incidente atribuido o, sin etiquetas, uso por encima del límite del plan) se excluyen
 del clustering y nunca reciben una venta. `offers.py` aplica una política determinista (upgrade, ampliación temporal,
 consejo, plan máximo) con tope de descuento, enfriamiento entre ofertas y antigüedad mínima; los textos pasan el mismo
-guardarraíl de cifras que las alarmas y todo queda en `pendiente_revision`. Los CSV sin datos de cuentas omiten esta
+control de cifras que las alarmas y todo queda en `pendiente_revision`. Los CSV sin datos de cuentas omiten esta
 capacidad sin inventar información.
 
 ## Producción (no implementado aquí)

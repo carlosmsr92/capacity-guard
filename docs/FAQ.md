@@ -23,7 +23,7 @@ umbral estático vuelve a ser la mejor opción; el modelo solo compensa si avisa
 A ~26 M de filas funcionó en una máquina de 3 GB; pandas a ese tamaño no se probó.
 
 **¿El LLM funciona?** La ruta está verificada con un cliente simulado (texto válido, cifra inventada, servicio caído). No se
-ejecutó contra el servicio real por falta de clave. El guardarraíl impide que publique cifras que no estén en la evidencia.
+ejecutó contra el servicio real por falta de clave. Un control de cifras impide que publique ningún número que no esté en los datos de la alarma.
 
 **¿Qué haría con datos reales?** Reentrenar, recalibrar el presupuesto con el equipo de guardia, validar con incidentes
 históricos y añadir señales de logs (p. ej., intentos a wp-login). Esperaría peor diagnóstico de causa que el simulado.
