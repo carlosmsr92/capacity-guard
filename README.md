@@ -7,6 +7,8 @@
 calidad de datos, almacenamiento columnar, modelos de machine learning, análisis de negocio, dashboard de BI y
 explicaciones de alarmas redactadas con IA generativa bajo un guardarraíl.
 
+🔗 **Dashboard:** [capacity-guard.streamlit.app](https://capacity-guard.streamlit.app/)
+
 A partir de métricas cada 5 minutos (CPU, RAM, iowait, red, load, peticiones/min), el sistema:
 
 1. detecta comportamientos anómalos respecto a lo normal para esa hora de la semana,
@@ -72,7 +74,7 @@ flowchart LR
   G3 --> M[MLflow]
 ```
 
-Decisiones de diseño: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · preguntas frecuentes: [`docs/INTERVIEW.md`](docs/INTERVIEW.md).
+Decisiones de diseño: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) · preguntas frecuentes: [`docs/FAQ.md`](docs/FAQ.md).
 
 ## Qué demuestra y cómo se comprobó
 
@@ -257,4 +259,10 @@ outputs/                             artefactos generados; en git solo results.j
 requirements.txt / requirements.lock dependencias (rangos verificados / versiones exactas)
 ```
 
-Licencia MIT.
+## Licencia
+
+[MIT](LICENSE) © 2026 Carlos Manuel Suárez Rivero (CMSR92)
+
+## Autor
+
+**Carlos Manuel Suárez Rivero (CMSR92)** · [LinkedIn](https://www.linkedin.com/in/cmsr92) · [Portfolio](https://carlosmsr92.github.io/cmsr92/)

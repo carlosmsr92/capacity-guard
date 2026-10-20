@@ -6,23 +6,24 @@ toolbarMode = "minimal"
 # Oculta la barra superior de la app (opción estándar de Streamlit, sin documentar en la web)
 hideTopBar = true
 
-# Tema inspirado en la paleta de un proveedor de hosting: azul corporativo, azul marino y Roboto.
+# Marco común CMSR92 de los dashboards del portfolio: turquesa de marca como color principal (#087F93 en claro,
+# 4,7:1 sobre blanco; #0CA5BE en oscuro, 6,4:1) y la letra Inter de la landing.
 # Las secciones [theme.light] y [theme.dark] (Streamlit >= 1.51) mantienen los dos temas; cada viewer ve el de su sistema.
 # Todos los colores de gráficas tienen contraste >= 3:1 sobre ambos fondos (#ffffff y #0e141c).
 [theme]
-font = "Roboto:https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap, sans-serif"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap, sans-serif"
 baseRadius = "6px"
 chartCategoricalColors = ["#2f80c8", "#d97706", "#d64545", "#1f9d55", "#9a6fd6", "#808891"]
 
 [theme.light]
-primaryColor = "#196ca1"
+primaryColor = "#087F93"
 backgroundColor = "#ffffff"
 secondaryBackgroundColor = "#f3f6f9"
 textColor = "#1b2632"
 borderColor = "#d6dde5"
 
 [theme.dark]
-primaryColor = "#0ab1e4"
+primaryColor = "#0CA5BE"
 backgroundColor = "#0e141c"
 secondaryBackgroundColor = "#1b2632"
 textColor = "#e7edf3"

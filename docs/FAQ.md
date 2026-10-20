@@ -1,4 +1,4 @@
-# Preguntas probables y respuestas honestas
+# Preguntas frecuentes
 
 **¿Por qué datos simulados?** No tenía métricas reales de un hosting. El simulador permite etiquetas exactas
 (qué es incidente, cuándo empieza la saturación) y medir la antelación de forma honesta. La contrapartida: las cifras no

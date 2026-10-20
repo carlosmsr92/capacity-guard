@@ -1,7 +1,6 @@
 """Dashboard de BI de capacity-guard (Streamlit). Ejecutar: streamlit run dashboard/app.py"""
 from __future__ import annotations
 
-import base64
 import json
 import os
 import re
@@ -21,6 +20,7 @@ from capguard import analysis  # noqa: E402
 from capguard.simulator import SAT_LIMITS  # noqa: E402
 from dashboard.formato import fn0, fn2, fni, grafico, tabla, texto_es  # noqa: E402
 from dashboard.labels import KPIS, feature, label, plans_in_text  # noqa: E402
+from dashboard.marca import ICONO, cabecera, pie  # noqa: E402
 
 
 def _has_results(d: Path) -> bool:
@@ -40,7 +40,7 @@ DATA = OUT / "data"
 C_METRIC, C_LIMIT, C_RISK, C_ALARM = "#808891", "#d64545", "#2f80c8", "#d97706"
 METHODS = {"threshold": "Umbral estático", "zscore": "Z-score estacional", "iforest": "Isolation Forest", "gbm": "Pronosticador GBM"}
 
-st.set_page_config(page_title="capacity-guard", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="capacity-guard · CMSR92", page_icon=ICONO, layout="wide")
 
 
 def _stamp() -> int:
@@ -119,24 +119,12 @@ R = load_results(_stamp())
 main_b = R["main"]["tasks"]["B"]["methods"]
 CSV = R.get("source", "sim") == "csv"
 CAP = R.get("capabilities", {})
-# Banda con fondo propio (texto blanco sobre azul, contraste 5,7:1): se ve igual en el tema claro y en el oscuro.
-# El logo del autor (PNG con fondo transparente) se pinta en blanco con un filtro CSS para que destaque sobre el azul.
-LOGO = Path(__file__).parent / "assets" / "logo_cmsr92.png"
-logo_html = (f'<img class="cg-logo" alt="CMSR92" src="data:image/png;base64,{base64.b64encode(LOGO.read_bytes()).decode()}">'
-             if LOGO.exists() else "")
-st.markdown(f"""<style>
-.cg-header {{background: linear-gradient(90deg, #196ca1 60%, #0b91ca); color: #fff; border-radius: 6px;
-  padding: 1.1rem 1.4rem; margin-bottom: 1rem; display: flex; flex-wrap: wrap; align-items: center;
-  justify-content: space-between; gap: 0.75rem 1.5rem}}
-.cg-header .cg-title {{font-size: 2rem; font-weight: 700; line-height: 1.2}}
-.cg-header .cg-sub {{font-size: 0.95rem; opacity: 0.95; margin-top: 0.25rem}}
-.cg-header .cg-logo {{height: 52px; width: auto; filter: brightness(0) invert(1)}}
-/* En móvil, los valores de texto largos de las tarjetas pasan de línea en vez de cortarse con «…» */
-[data-testid="stMetricValue"] div, [data-testid="stMetricValue"] p {{white-space: normal; text-overflow: clip; line-height: 1.2}}
-</style>
-<div class="cg-header"><div><div class="cg-title">capacity-guard</div>
-<div class="cg-sub">Detección de anomalías y aviso temprano de saturación en servidores de hosting ·
-{"datos reales (CSV)" if CSV else "datos simulados"}</div></div>{logo_html}</div>""", unsafe_allow_html=True)
+# En móvil, los valores de texto largos de las tarjetas pasan de línea en vez de cortarse con «…»
+st.markdown("""<style>
+[data-testid="stMetricValue"] div, [data-testid="stMetricValue"] p {white-space: normal; text-overflow: clip; line-height: 1.2}
+</style>""", unsafe_allow_html=True)
+cabecera("capacity-guard", "Detección de anomalías y aviso temprano de saturación en servidores de hosting · "
+         + ("datos reales (CSV)" if CSV else "datos simulados"))
 if DEMO:
     cfg = R["main"]["config"]
     st.info(f"Datos de demostración: instantánea versionada de `python -m capguard all` (semilla {cfg['seed']}, "
@@ -334,3 +322,5 @@ with tabs[6]:
         st.caption(f"Procedencia: {exp[pick]['source']}" + (f" · guardarraíl: {exp[pick]['guardrail']}" if exp[pick]["guardrail"] else ""))
         with st.expander("Evidencia usada (lo único que puede ver el redactor)"):
             st.json(exp[pick]["evidence"])
+
+pie("capacity-guard")
